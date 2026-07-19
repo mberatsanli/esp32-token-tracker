@@ -1,7 +1,6 @@
 #pragma once
 #include <Arduino.h>
 #include <vector>
-#include "secrets.h"  // factory-default credentials, gitignored (see secrets.example.h)
 
 struct Provider {
   String id;            // short slug, e.g. "claude"
@@ -32,8 +31,8 @@ struct Provider {
 struct Config {
   String wifiSsid;
   String wifiPass;
-  String apPass = TT_AP_PASSWORD;    // device's own AP password (min 8 chars)
-  String webPass = TT_WEB_PASSWORD;  // web panel password (basic auth, user "admin")
+  String apPass;   // device's own AP password (min 8 chars); random on first boot
+  String webPass;  // web panel password (basic auth, user "admin"); same random
   uint8_t rotation = 0;      // 0/2 portrait, 1/3 landscape
   uint16_t refreshSec = 120; // provider poll interval
   std::vector<Provider> providers;

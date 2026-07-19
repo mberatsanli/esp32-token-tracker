@@ -106,21 +106,36 @@ void configSave() {
   prefs.end();
 }
 
+// No secrets are compiled into the firmware: on first boot a random
+// password is generated, stored in NVS and shown on the setup screen.
+static String randomPassword(size_t len) {
+  static const char alpha[] = "abcdefghjkmnpqrstuvwxyz23456789";  // no 0/O 1/l/i
+  String out;
+  for (size_t i = 0; i < len; i++) out += alpha[esp_random() % (sizeof(alpha) - 1)];
+  return out;
+}
+
 void configLoad() {
   prefs.begin("tracker", true);
   String json = prefs.getString("cfg", "");
   prefs.end();
   if (json.length()) {
     configFromJson(json);
-    return;
+  } else {
+    // defaults: seed one disabled provider per registered client
+    for (ProviderClient *c : providerClients()) {
+      Provider p;
+      p.id = c->type();
+      p.name = c->displayName();
+      p.type = c->type();
+      p.enabled = false;
+      config.providers.push_back(p);
+    }
   }
-  // defaults: seed one disabled provider per registered client
-  for (ProviderClient *c : providerClients()) {
-    Provider p;
-    p.id = c->type();
-    p.name = c->displayName();
-    p.type = c->type();
-    p.enabled = false;
-    config.providers.push_back(p);
+  if (config.apPass.length() < 8 || config.webPass.length() < 4) {
+    String pass = randomPassword(8);  // one password for AP and panel,
+    config.apPass = pass;             // both visible on the setup screen
+    config.webPass = pass;
+    configSave();
   }
 }
