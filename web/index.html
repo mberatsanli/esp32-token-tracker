@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Token Tracker</title>
+<style>
+:root{--bg:#101014;--card:#1a1a20;--fg:#eee;--muted:#888;--acc:#d97757}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--fg);padding:16px;max-width:520px;margin-inline:auto}
+h1{font-size:18px;margin:4px 0 16px}
+h2{font-size:13px;margin:0 0 2px;font-weight:600}
+.sub{font-size:11px;color:#777;margin:0 0 10px;line-height:1.4}
+.card{background:var(--card);border-radius:10px;padding:12px;margin-bottom:10px}
+.row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.row:last-child{margin-bottom:0}
+label{font-size:12px;color:var(--muted);display:block;margin-bottom:2px}
+input,select{width:100%;padding:8px;border-radius:6px;border:1px solid #333;background:#26262e;color:var(--fg);font-size:14px}
+input[type=checkbox]{width:auto}
+button{background:var(--acc);color:#fff;border:0;border-radius:6px;padding:10px 16px;font-size:14px;cursor:pointer}
+button.ghost{background:#333}
+.badge{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;flex:none}
+.pname{flex:1}
+.status{font-size:12px;color:var(--muted)}
+.status a{color:#e8a87c}
+.hint{font-size:11px;color:#777;margin-top:6px;line-height:1.45;border-left:2px solid #333;padding-left:8px}
+.hint a{color:#9ab}
+.hint code{background:#26262e;padding:1px 4px;border-radius:3px}
+.del{background:none;border:0;color:#a55;cursor:pointer;font-size:16px;padding:4px}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#2a5;color:#fff;padding:8px 16px;border-radius:8px;display:none}
+</style></head><body>
+<h1>⚡ Token Tracker</h1>
+
+<div class="card">
+  <h2>🏠 Home WiFi</h2>
+  <p class="sub">The network this device joins to reach the internet.</p>
+  <div class="row"><div style="flex:1"><label>Network name (SSID)</label><input id="ssid"></div>
+  <div style="flex:1"><label>Password</label><input id="pass" type="password" placeholder="(unchanged)"></div></div>
+</div>
+
+<div class="card">
+  <h2>📡 Device Hotspot</h2>
+  <p class="sub">The device's own network, "TokenTracker" — always on. Join it and open http://192.168.4.1 when the home WiFi is unreachable.</p>
+  <div class="row"><div style="flex:1"><label>Hotspot password (min 8 chars)</label><input id="appass" type="password" placeholder="(unchanged)"></div></div>
+</div>
+
+<div class="card">
+  <h2>⚙️ Panel &amp; Display</h2>
+  <p class="sub">Login for this page and how the screen behaves.</p>
+  <div class="row"><div style="flex:1"><label>Panel password (user: admin, min 4 chars)</label><input id="webpass" type="password" placeholder="(unchanged)"></div>
+  <div style="flex:1"><label>Data refresh (seconds)</label><input id="refresh" type="number" min="30"></div></div>
+  <div class="row"><div style="flex:1"><label>Screen orientation</label>
+    <select id="rot"><option value="0">Portrait</option><option value="1">Landscape</option>
+    <option value="2">Portrait flipped</option><option value="3">Landscape flipped</option></select></div></div>
+</div>
+
+<div id="providers"></div>
+
+<div class="row" style="margin-top:12px">
+  <button class="ghost" onclick="addProvider()">+ Add provider</button>
+  <div style="flex:1"></div>
+  <button onclick="save()">Save</button>
+</div>
+<div id="toast">Saved ✓</div>
+
+<script>
+const COLORS={'claude-code':'#d97757','kimi-code':'#0a8fff'};
+const TYPES=['claude-code','kimi-code'];
+const TYPE_INFO={
+ 'claude-code':'Claude subscription usage: 5h + weekly windows with reset countdowns. Key: long-lived OAuth token — run <code>claude setup-token</code> on your computer and paste the <code>sk-ant-oat01-...</code> value here. Regular API keys will not work.',
+ 'kimi-code':'Kimi Code subscription quota: 5h window + weekly quota. No API key — the device pairs itself over OAuth: approve the pair code (shown on the screen and here) at <a href="https://www.kimi.com/code/authorize_device" target="_blank">kimi.com/code/authorize_device</a>. Tokens renew automatically; Kimi Code console API keys are for coding requests only and cannot read quota.'
+};
+let cfg=null;
+
+function el(html){const t=document.createElement('template');t.innerHTML=html.trim();return t.content.firstChild}
+
+function render(){
+  document.getElementById('ssid').value=cfg.wifiSsid||'';
+  document.getElementById('rot').value=cfg.rotation;
+  document.getElementById('refresh').value=cfg.refreshSec;
+  const wrap=document.getElementById('providers');wrap.innerHTML='';
+  cfg.providers.forEach((p,i)=>{
+    const c=COLORS[p.type]||'#666';
+    const card=el(`<div class="card">
+      <div class="row">
+        <div class="badge" style="background:${c}">${(p.name||'?')[0].toUpperCase()}</div>
+        <div class="pname"><input value="${p.name||''}" data-i="${i}" data-f="name" placeholder="Name"></div>
+        <label style="margin:0"><input type="checkbox" data-i="${i}" data-f="enabled" ${p.enabled?'checked':''}> on</label>
+        <button class="del" data-i="${i}" title="Remove">✕</button>
+      </div>
+      <div class="row">
+        <div style="flex:1"><label>Type</label><select data-i="${i}" data-f="type">${TYPES.map(t=>`<option ${t===p.type?'selected':''}>${t}</option>`).join('')}</select></div>
+        ${p.type==='kimi-code'
+          ?`<div style="flex:2;display:flex;align-items:center;gap:10px"><span class="status" style="flex:1">${p.hasKey?'✓ paired':(p.userCode?'waiting for approval...':'pairing starts automatically')}</span>${p.hasKey?`<button class="ghost" data-repair="${i}">Re-pair</button>`:''}</div>`
+          :`<div style="flex:2"><label>API key ${p.hasKey?'(set)':''}</label><input type="password" data-i="${i}" data-f="apiKey" placeholder="${p.hasKey?'(unchanged)':'paste key'}"></div>`}
+      </div>
+      <div class="status">${p.userCode&&p.verifyUrl?`pair: <a href="${p.verifyUrl}" target="_blank"><b>${p.userCode}</b> — click to approve</a> — `:''}${p.label?p.label+' — ':''}${p.fetchOk?'ok':(p.error?'⚠ '+p.error:'no data yet')}</div>
+      <div class="hint">${TYPE_INFO[p.type]||''}</div>
+    </div>`);
+    card.querySelector('.del').onclick=()=>{cfg.providers.splice(i,1);render()};
+    const rp=card.querySelector('[data-repair]');
+    if(rp)rp.onclick=()=>{if(confirm('Forget pairing and show a new code?')){p.clearKey=true;save()}};
+    wrap.appendChild(card);
+  });
+  wrap.querySelectorAll('[data-f]').forEach(inp=>{
+    inp.onchange=()=>{
+      const p=cfg.providers[+inp.dataset.i];
+      p[inp.dataset.f]=inp.type==='checkbox'?inp.checked:inp.value;
+      if(inp.dataset.f==='type')render();
+    };
+  });
+}
+
+function addProvider(){
+  cfg.providers.push({id:'',name:'',type:TYPES[0],enabled:true});
+  render();
+  const inputs=document.querySelectorAll('#providers [data-f="name"]');
+  const last=inputs[inputs.length-1];
+  if(last){last.focus();last.placeholder='Name (e.g. Gemini)'}
+}
+
+function slugify(s){return s.toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')}
+
+async function save(){
+  for(const p of cfg.providers){
+    if(!p.name||!p.name.trim()){alert('Every provider needs a name');return}
+    if(!p.id)p.id=slugify(p.name)||('p'+Date.now());
+  }
+  const body={
+    wifiSsid:document.getElementById('ssid').value,
+    rotation:+document.getElementById('rot').value,
+    refreshSec:+document.getElementById('refresh').value,
+    providers:cfg.providers.map(p=>{
+      const o={id:p.id,name:p.name,type:p.type,enabled:!!p.enabled};
+      if(p.apiKey)o.apiKey=p.apiKey;
+      if(p.clearKey)o.clearKey=true;
+      return o;
+    })
+  };
+  const pass=document.getElementById('pass').value;
+  if(pass)body.wifiPass=pass;
+  const appass=document.getElementById('appass').value;
+  if(appass){if(appass.length<8){alert('AP password must be at least 8 chars');return}body.apPass=appass}
+  const webpass=document.getElementById('webpass').value;
+  if(webpass){if(webpass.length<4){alert('Panel password must be at least 4 chars');return}body.webPass=webpass}
+  const r=await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r.ok){const t=document.getElementById('toast');t.style.display='block';setTimeout(()=>t.style.display='none',1500);load()}
+  else alert('Save failed');
+}
+
+async function load(){cfg=await(await fetch('/api/config')).json();render()}
+load();setInterval(load,15000);
+</script></body></html>
