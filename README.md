@@ -9,8 +9,7 @@ It currently tracks:
 - **Claude Code** — 5h window + weekly limit, with reset countdowns
 - **Kimi Code** — same idea, paired over OAuth right on the device
 
-<!-- hero shot: device on desk showing the Claude page -->
-![Token tracker on my desk](docs/img/hero.jpg)
+![Claude Code Preview](docs/img/claude.jpeg)
 
 Everything runs on the board itself. No companion app, no script on your
 computer, nothing to keep running in the background. The ESP32 talks to the
@@ -33,8 +32,7 @@ the web panel.
 code, you approve it at kimi.com in your browser, done. The refresh token
 is stored in NVS and access tokens renew themselves. No key to paste at all.
 
-<!-- photo: the pairing screen with a code on it -->
-![Kimi pairing screen](docs/img/pairing.jpg)
+![Kimi pairing screen](docs/img/pairing.jpeg)
 
 ## Hardware
 
@@ -66,9 +64,6 @@ binary is safe to share.
 
 The screen walks you through it:
 
-<!-- photo: the SETUP screen with the 4 steps -->
-![Setup screen](docs/img/setup.jpg)
-
 1. Join the `TokenTracker` WiFi network (password is on the screen)
 2. Open `http://192.168.4.1`
 3. Log in as `admin` (same password)
@@ -79,7 +74,6 @@ LAN. The AP stays up as a fallback so you can always reach the config.
 
 ## The web panel
 
-<!-- screenshot: the config panel in a browser -->
 ![Web panel](docs/img/panel.png)
 
 Providers can be added, toggled and renamed. Claude Code wants its OAuth
